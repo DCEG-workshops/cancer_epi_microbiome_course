@@ -1,0 +1,10 @@
+alignment: is-left
+style: is-boxed
+size: is-large
+items:
+  - name: Overview
+    link: /workshops/session_4
+    icon: fa-home
+  - name: Lecture
+    link: /workshops/session_4/lecture
+    icon: fa-book

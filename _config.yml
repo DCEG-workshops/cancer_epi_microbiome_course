@@ -1,0 +1,170 @@
+# Welcome to Jekyll!
+#
+# This config file is meant for settings that affect your whole blog, values
+# which you are expected to set up once and rarely edit after that. If you find
+# yourself editing this file very often, consider using Jekyll's data files
+# feature for the data you need to update frequently.
+#
+# For technical reasons, this file is *NOT* reloaded automatically when you use
+# 'bundle exec jekyll serve'. If you change this file, please restart the server process.
+#
+#   bundle exec jekyll serve --livereload
+#
+#
+#
+# If you need help with YAML syntax, here are some quick references for you:
+# https://learn-the-web.algonquindesign.ca/topics/markdown-yaml-cheat-sheet/#yaml
+# https://learnxinyminutes.com/docs/yaml/
+#
+# Site settings
+# These are used to personalize your new site. If you look in the HTML files,
+# you will see them accessed via {{ site.title }}, {{ site.email }}, and so on.
+# You can create any custom variable you would like, and they will be accessible
+# in the templates via {{ site.myvariable }}.
+
+title: DCEG Human Microbiome & Cancer Epidemiology Short Course
+email: your-email@example.com
+description: >- # this means to ignore newlines until "baseurl:"
+  An overview of the process of conducting studies of the human microbiome and cancer risk,
+  focusing on the bacterial component of the human microbiome with discussion of the mycobiome
+#baseurl: "/test-url" # the subpath of your site, e.g. /blog
+baseurl: "/cancer_epi_microbiome_course"
+#url: "" # the base hostname & protocol for your site, e.g. http://example.com
+
+# Build settings
+remote_theme: chrisrhymes/bulma-clean-theme@v0.13
+#remote_theme: just-the-docs/just-the-docs
+#theme: minima
+plugins:
+#  - jekyll-feed
+  - jekyll-remote-theme
+
+# collections
+collections:
+  instructors:
+  products:
+#  speakers:
+
+# updates
+paginate: 5
+paginate_path: "/news/page:num"
+
+# FORMATTING
+#
+#fixed_navbar: top
+defaults:
+  -
+    scope:
+      path: ""
+    values:
+      hero_height: is-small
+      #hero_image: /cancer_epi_microbiome_course/assets/grey_background.png
+      hero_darken: false
+  -
+    scope:
+      path: workshops
+    values:
+      hero_height: is-small
+      show_menubar: true
+      menubar: workshops_sidebar
+  -
+    scope:
+      type: posts
+    values:
+      hero_height: is-small
+      show_sidebar: true
+  -
+    scope:
+      path: workshops/session_1
+    values:
+      title: "Session 1: Overview of the Human Microbiome"
+      parent: workshops
+      nav_order: 1
+      tabs: session1_tabs
+  -
+    scope:
+      path: workshops/session_2
+    values:
+      title: "Session 2: Sample Collection, Storage, and QC"
+      parent: workshops
+      nav_order: 2
+      tabs: session2_tabs
+  -
+    scope:
+      path: workshops/session_3
+    values:
+      title: "Session 3: DNA Extraction & Sequencing"
+      parent: workshops
+      nav_order: 3
+      tabs: session3_tabs
+  -
+    scope:
+      path: workshops/session_4
+    values:
+      title: "Session 4: QIIME 2 for Bioinformatics"
+      parent: workshops
+      nav_order: 4
+      tabs: session4_tabs
+  -
+    scope:
+      path: workshops/session_5
+    values:
+      title: "Session 5: Statistical Analysis"
+      parent: workshops
+      nav_order: 5
+      tabs: session5_tabs
+  -
+    scope:
+      path: workshops/session_6
+    values:
+      title: "Session 6: Meta-analysis & Data Sharing"
+      parent: workshops
+      nav_order: 6
+      tabs: session6_tabs
+  -
+    scope:
+      path: workshops/session_7
+    values:
+      title: "Session 7: Hands-on Data Analysis (R)"
+      parent: workshops
+      nav_order: 7
+      tabs: session7_tabs
+  -
+    scope:
+      path: workshops/session_8
+    values:
+      title: "Session 8: Tissue Microbiome Studies"
+      parent: workshops
+      nav_order: 8
+      tabs: session8_tabs
+  -
+    scope:
+      path: workshops/session_9
+    values:
+      title: "Session 9: Summary & Special Considerations"
+      parent: workshops
+      nav_order: 9
+      tabs: session9_tabs
+  
+  
+
+# Exclude from processing.
+# The following items will not be processed, by default.
+# Any item listed under the `exclude:` key here will be automatically added to
+# the internal "default list".
+#
+# Excluded items can be processed by explicitly listing the directories or
+# their entries' file path in the `include:` list.
+#
+exclude:
+  - .sass-cache/
+  - .jekyll-cache/
+  - gemfiles/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - private/

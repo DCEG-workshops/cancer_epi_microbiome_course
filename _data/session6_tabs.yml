@@ -1,0 +1,13 @@
+alignment: is-left
+style: is-boxed
+size: is-large
+items:
+  - name: Overview
+    link: /workshops/session_6
+    icon: fa-home
+  - name: Lecture
+    link: /workshops/session_6/lecture
+    icon: fa-book
+  - name: Practical
+    link: /workshops/session_6/practical
+    icon: fa-laptop-code

@@ -1,0 +1,20 @@
+- label: Course Sessions
+  items:
+    - name: 'Session 1: Overview of the Human Microbiome'
+      link: /workshops/session_1
+    - name: 'Session 2: Sample Collection, Storage, and QC'
+      link: /workshops/session_2
+    - name: 'Session 3: DNA Extraction & Sequencing'
+      link: /workshops/session_3
+    - name: 'Session 4: QIIME 2 for Bioinformatics'
+      link: /workshops/session_4
+    - name: 'Session 5: Statistical Analysis'
+      link: /workshops/session_5
+    - name: 'Session 6: Meta-analysis & Data Sharing'
+      link: /workshops/session_6
+    - name: 'Session 7: Hands-on Data Analysis (R)'
+      link: /workshops/session_7
+    - name: 'Session 8: Tissue Microbiome Studies'
+      link: /workshops/session_8
+    - name: 'Session 9: Summary & Special Considerations'
+      link: /workshops/session_9
