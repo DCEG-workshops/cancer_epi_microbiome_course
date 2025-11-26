@@ -30,6 +30,7 @@ description: >- # this means to ignore newlines until "baseurl:"
 #baseurl: "/test-url" # the subpath of your site, e.g. /blog
 baseurl: "/cancer_epi_microbiome_course"
 #url: "" # the base hostname & protocol for your site, e.g. http://example.com
+repository: DCEG-workshops/cancer_epi_microbiome_course
 
 # Build settings
 remote_theme: chrisrhymes/bulma-clean-theme@v0.13
