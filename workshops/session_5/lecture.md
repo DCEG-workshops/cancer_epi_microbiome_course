@@ -23,4 +23,4 @@ permalink: workshops/session_5/lecture
 - Power and sample size estimation
 
 <br>
-*Instructors: Shi & Anyaso Samuel (BB)*
+*Instructors: Shi & Anyaso-Samuel (BB)*
