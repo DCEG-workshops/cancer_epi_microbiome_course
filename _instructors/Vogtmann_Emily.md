@@ -1,6 +1,6 @@
 ---
 picture: emily-vogtmann.jpg
-name: Emily Vogtmann, Ph.D., M.P.H.
+name: Emily Vogtmann
 education: Ph.D., M.P.H.
 organization: Metabolic Epidemiology Branch, DCEG
 position: Earl Stadtman Investigator
