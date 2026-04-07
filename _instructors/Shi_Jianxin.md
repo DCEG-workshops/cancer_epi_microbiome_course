@@ -1,5 +1,5 @@
 ---
-picture: jianxin—shi.jpg
+picture: jianxin-shi.jpg
 name: Jianxin Shi, Ph.D.
 education: Ph.D.
 organization: Biostatistics Branch, DCEG
