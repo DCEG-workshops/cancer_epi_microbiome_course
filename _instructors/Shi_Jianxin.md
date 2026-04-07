@@ -1,6 +1,6 @@
 ---
 picture: jianxin-shi.jpg
-name: Jianxin Shi, Ph.D.
+name: Jianxin Shi
 education: Ph.D.
 organization: Biostatistics Branch, DCEG
 position: Senior Investigator

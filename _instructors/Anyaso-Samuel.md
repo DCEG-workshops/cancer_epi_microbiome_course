@@ -1,6 +1,6 @@
 ---
 picture: SamuelAnyasoSamuel_Photo.jpg
-name: Samuel Anyaso-Samuel, Ph.D.
+name: Samuel Anyaso-Samuel
 education: Ph.D.
 organization: Biostatistics Branch, DCEG
 position: Postdoctoral Fellow

@@ -1,6 +1,6 @@
 ---
 picture: yukiko-yano.jpg
-name: Yukiko Yano, Ph.D., M.P.H.
+name: Yukiko Yano
 education: Ph.D., M.P.H.
 organization: Metabolic Epidemiology Branch, DCEG
 position: Independent Research Scholar; Research Fellow

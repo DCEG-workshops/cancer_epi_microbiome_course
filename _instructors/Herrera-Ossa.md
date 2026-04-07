@@ -1,6 +1,6 @@
 ---
 picture: giovanny-andres-herrera-ossa.jpg
-name: Giovanny A. Herrera Ossa, Ph.D., M.Sc.
+name: Giovanny A. Herrera Ossa
 education: Ph.D., M.Sc.
 organization: Metabolic Epidemiology Branch, DCEG
 position: Postdoctoral Fellow

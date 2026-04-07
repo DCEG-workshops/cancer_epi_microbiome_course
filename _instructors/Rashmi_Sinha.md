@@ -1,6 +1,6 @@
 ---
 picture: Rashmi_Sinha.jpeg
-name: Rashmi Sinha, Ph.D.
+name: Rashmi Sinha
 education: Ph.D.
 organization: Metabolic Epidemiology Branch, DCEG
 position: Senior Investigator
