@@ -1,6 +1,6 @@
 ---
 picture: christian-abnet.jpg
-name: Christian C. Abnet, Ph.D., M.P.H.
+name: Christian C. Abnet
 education: Ph.D., M.P.H.
 organization: Metabolic Epidemiology Branch, DCEG
 position: Director, MEB / Senior Investigator
