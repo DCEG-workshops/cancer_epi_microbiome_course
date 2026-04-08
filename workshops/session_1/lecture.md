@@ -8,7 +8,7 @@ permalink: workshops/session_1/lecture
 
 
 
-# <object data="assets/Lecture01_PeterKraft.pdf" width="1000" height="1000" type='application/pdf'></object>
+<object data="ABNET_DCEG_Microbiome_Course_Lecture1_Overview.pdf" width="1000" height="1000" type='application/pdf'></object>
 
 
 ## Lecture: Overview of the Human Microbiome
