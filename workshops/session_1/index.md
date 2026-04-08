@@ -4,10 +4,14 @@ permalink: workshops/session_1
 ---
 
 ### Topics Covered
-- History of microbiome
-- Microbiome science concepts
-- Microbiome focus areas (e.g., bacteria, fungi, etc) – what we can and cannot cover
-- NHANES oral microbiome results
+- Background concepts on the human microbiome including functions, body sites, components, communities
+- The Human Microbiome Project & Microbiome Quality Control Project
+- Helicobacter pylori as the prototypical bacterial carcinogen and interventions
+- Bacterial mechanisms of carcinogenesis
+- Examples of DCEG led disease association studies
+- NHANES Oral microbiome
+- A few examples of future directions
+
 
 ### Session Overview
 
