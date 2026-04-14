@@ -3,24 +3,12 @@ layout: page
 permalink: workshops/session_2/lecture
 ---
 
-## Lecture: Sample Collection, Storage, and QC
+<script src="{{ site.baseurl }}/assets/js/vanilla-back-to-top.min.js"></script>
+<script>addBackToTop()</script>
 
-### Learning Objectives
-- Understand proper sample collection methods for different body sites
-- Learn storage protocols for long-term preservation
-- Recognize the importance of quality control samples
-- Understand batching strategies for laboratory processing
 
-### Lecture Materials
-[Lecture slides will be posted here]
 
-### Key Concepts
-- Oral sample collection techniques
-- Fecal sample collection methods
-- Collection questionnaires
-- Storage conditions and stability
-- QC sample design and implementation
-- Sample batching strategies
+<object data="Rashmi_Microbiome_course_2026.pdf" width="1000" height="1000" type='application/pdf'></object>
 
-<br>
-*Instructor: Sinha (MEB)*
+
+---
