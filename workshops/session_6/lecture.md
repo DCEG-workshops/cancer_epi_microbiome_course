@@ -12,9 +12,6 @@ permalink: workshops/session_6/lecture
 - Learn data sharing requirements and best practices
 - Understand IRB and privacy considerations
 
-### Lecture Materials
-[Lecture slides will be posted here]
-
 ### Key Concepts
 - Meta-analysis methods for microbiome data
 - 16S rRNA gene sequencing vs. shotgun metagenomics
@@ -22,6 +19,12 @@ permalink: workshops/session_6/lecture
 - SRA, ENA, and dbGaP submission processes
 - Metadata standards (NMDC, MIxS)
 - IRB requirements for data sharing
+
+### Lecture Materials
+<script src="{{ site.baseurl }}/assets/js/vanilla-back-to-top.min.js"></script>
+<script>addBackToTop()</script>
+
+<object data="Microbiome_Course_2026_DCEG_session6.pdf" width="1000" height="1000" type='application/pdf'></object>
 
 <br>
 *Instructors: Herrera (MEB) & Wan (CGR)*
