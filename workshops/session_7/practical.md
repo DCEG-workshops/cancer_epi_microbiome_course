@@ -12,12 +12,13 @@ permalink: workshops/session_7/practical
 - Create publication-quality visualizations
 - Interpret results in epidemiological context
 
-### Materials
-[R scripts, datasets, and instructions will be posted here]
-
 ### Prerequisites
-- R and RStudio installed
-- Required packages (list will be provided)
+You can view instructions [here](Session7_Presessioninstructions.pdf)
+
+[**Open the practical report →**](coursecode_2026_0519.html)
+
+You can also download the source R Markdown file [here](coursecode_2026_0519.Rmd)
+
 
 <br>
 *Instructors: Yano & Ferro (MEB)*
