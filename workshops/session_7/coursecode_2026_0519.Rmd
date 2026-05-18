@@ -1,0 +1,1122 @@
+---
+title: 'DCEG Microbiome Course 2026: NHANES tutorial'
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+date: "2026-05-19"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  tidy = TRUE,
+  tidy.opts = list(width.cutoff = 60)
+)
+
+```
+
+## Overview
+
+In this tutorial, we will use R to explore the publicly available [NHANES 2009-2012 Oral Microbiome Data](https://wwwn.cdc.gov/Nchs/Nhanes/omp/).
+
+Before we start, make sure you have a `data` folder containing the following data files (text files downloaded from the NHANES website) to load into R (we will be using the 'Remove SV1032' versions):
+
+-   alpha diversity: `dada2rsv-alpha.txt`
+    -   Shannon index
+    -   Observed OTUs
+    -   Inverse-Simpson index
+    -   Faith's Phylogenetic diversity
+-   beta diversity
+    -   Bray-Curtis: `dada2rsv-braycurtis-beta.txt`
+    -   unweighted UniFrac: `dada2rsv-unwunifrac-beta.txt`
+    -   weighted UniFrac: `dada2rsv-wunifrac-beta.txt`
+-   absolute abundance (read count)
+    -   phylum level: `dada2rsv-phylum-count.txt`
+    -   genus level: `dada2rsv-genus-count.txt`
+-   relative abundance
+    -   phylum level: `dada2rsv-phylum-relative.txt`
+    -   genus level: `dada2rsv-genus-relative.txt`
+-   taxonomy name (for absolute/relative abundance data): `dada2rsv-taxonomy-annotate.txt`
+
+## Setting up
+
+First, install and load packages we will be using. If you already have the package installed, skip the installation and just load.
+
+```{r message=FALSE, warning=FALSE}
+## install packages if needed (only need to do this once!)
+# install.packages("tidyverse")
+# install.packages("haven")
+# install.packages("dplyr")
+# install.packages("survey")
+#tinytex::install_tinytex()
+
+
+# load packages
+library(haven)
+library(survey)
+library(plyr)
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(tinytex)
+```
+
+Now check your working directory. This should be the parent folder that contains your `data` folder.\
+If you need to change your working directory, use `setwd()` and insert the file path you would like to change to.
+
+```{r results='hide'}
+getwd()
+
+```
+
+## Import raw data
+
+Note: We will only be using the Bray-Curtis beta diversity matrix for this tutorial, but you can look at the other types on your own.
+
+```{r results='hide'}
+# alpha diversity
+raw_data_alpha <- read_delim("dada2rsv-alpha.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE, na=".")
+
+# beta diversity
+raw_data_beta_bc <- read_delim("dada2rsv-braycurtis-beta.txt",  
+    delim = "\t", escape_double = FALSE,
+    trim_ws = TRUE, na=".")
+
+# absolute abundance
+raw_data_aa <- read_delim("dada2rsv-genus-count.txt",
+    delim = "\t", escape_double = FALSE,
+    trim_ws = TRUE)
+
+# relative abundance
+raw_data_ra <- read_delim("dada2rsv-genus-relative.txt",
+    delim = "\t", escape_double = FALSE,
+    trim_ws = TRUE)
+
+# taxa names 
+raw_data_taxaname <- read_delim("dada2rsv-taxonomy-annotate.txt",
+    delim = "\t", escape_double = FALSE,
+    trim_ws = TRUE)
+
+# demographic data
+raw_data_demo_f <- read_xpt("DEMO_F.xpt") #2009-2010
+raw_data_demo_g <- read_xpt("DEMO_G.xpt") #2011-2012
+
+# diet data
+raw_data_diet_f <- read_xpt("DR1TOT_F.xpt") #2009-2010
+raw_data_diet_g <- read_xpt("DR1TOT_G.xpt") #2011-2012
+```
+
+Take a peek at the data...
+
+**Alpha diversity:** Here, `SEQN` is the participant ID (rows), and the columns represent values for four different alpha diversity metrics (i.e., shannon, observed ASVs, Faith's PD, Shannon index, and Inverse Simpson's index) at different sequencing depths, over 10 iterations of resampling.
+
+```{r}
+tibble(raw_data_alpha)
+```
+
+**Beta diversity (Bray-Curtis):** This is a matrix of samples by samples.
+
+```{r}
+tibble(raw_data_beta_bc)
+```
+
+**Absolute/relative abundance:** Samples by taxa, with counts for absolute abundance and relative abundance calculated by dividing taxon counts by total counts per sample. Taxa are represented by index numbers - we will use `data_taxaname` later to link names.
+
+```{r}
+tibble(raw_data_aa)
+tibble(raw_data_ra)
+```
+
+**Demographic/diet data:**
+```{r}
+tibble(raw_data_demo_f)
+tibble(raw_data_demo_g)
+
+tibble(raw_data_diet_f)
+tibble(raw_data_diet_g)
+```
+
+## Set up analytic dataset
+
+### clean covariates
+
+We will merge the demographic and diet data, and clean some of the variables we will be using. 
+
+```{r}
+# Append the two cycles of demographic and diet data
+data_demo <- bind_rows(raw_data_demo_f, raw_data_demo_g) #demographic data
+data_diet <- bind_rows(raw_data_diet_f, raw_data_diet_g) #diet data
+
+dim(data_demo)
+dim(data_diet)
+
+# Merge the demopgraic and diet data into one covariate data
+data_cov <- full_join(data_demo, data_diet, by = "SEQN")
+dim(data_cov)
+```
+
+Create a new survey weight variable: since we are combining 2 NHANES cycles (2009-2010, 2011-2012), we need to create weights for the 4 years:
+
+```{r}
+data_cov$WTMEC4YR <- data_cov$WTMEC2YR/2
+summary(data_cov$WTMEC2YR)
+summary(data_cov$WTMEC4YR)
+```
+
+Now we will clean the sex, race/ethnicity, and age variables. 
+
+```{r}
+# sex (RIAGENDR)
+data_cov$RIAGENDR <- factor(data_cov$RIAGENDR, 
+                            levels = c(1, 2), labels = c("Male", "Female"))
+
+# race/ethnicity (RIDRETH1)
+data_cov$RIDRETH1 <- factor(data_cov$RIDRETH1, levels = c(1, 2, 3, 4, 5), 
+                            labels = c("Mexican American", "Other Hispanic", "Non-Hispanic White", "Non-Hispanic Black", "Other"))
+
+#age (RIDAGEYR)
+data_cov <- data_cov %>%
+  mutate(RIDAGEYR_cat = case_when(
+    RIDAGEYR < 20 ~ "0-19",
+    RIDAGEYR >= 20 & RIDAGEYR < 40 ~ "20-39",
+    RIDAGEYR >= 40 & RIDAGEYR < 60 ~ "40-59",
+    RIDAGEYR >= 60 ~ "60+",
+    TRUE ~ NA_character_
+  )) %>% 
+  mutate(
+    RIDAGEYR_cat = factor(RIDAGEYR_cat, levels = c("0-19", "20-39", "40-59", "60+"))
+  )
+```
+
+Use the weights to look at counts and proportions of sex, race/ethnicity, and age.
+
+```{r}
+# set up survey design
+nhanes_design <- svydesign(
+  ids = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~WTMEC4YR,
+  data = data_cov,
+  nest = TRUE
+)
+
+# sex 
+table(data_cov$RIAGENDR, useNA = "ifany") # unweighted
+svytable(~RIAGENDR, nhanes_design) # weighted
+
+# race/ethnicity
+table(data_cov$RIDRETH1, useNA = "ifany") # unweighted
+svytable(~RIDRETH1, nhanes_design) # weighted
+
+# age
+table(data_cov$RIDAGEYR_cat, useNA = "ifany") # unweighted
+svytable(~RIDAGEYR_cat, nhanes_design) # weighted
+```
+
+We will also look at differences in the microbiome by quartile of caffeine intake - create a variable for caffeine quartiles
+
+```{r}
+# caffeine (DR1TCAFF)
+quartiles <- coef(
+  svyquantile(~DR1TCAFF, nhanes_design,
+              quantiles = c(0.25, 0.5, 0.75),
+              na.rm = TRUE))
+print(quartiles)
+q_cut <- as.numeric(quartiles)
+
+data_cov$quart_DR1TCAFF <- cut(data_cov$DR1TCAFF, # create quartiles
+                                    breaks = c(-Inf, q_cut, Inf),
+                                    labels = c("Q1","Q2","Q3","Q4"),
+                                    include.lowest = TRUE)
+
+nhanes_design <- update(nhanes_design, quart_DR1TCAFF = data_cov$quart_DR1TCAFF) #update survey design
+
+# age
+table(data_cov$quart_DR1TCAFF, useNA = "ifany") # unweighted
+svytable(~quart_DR1TCAFF, nhanes_design) # weighted counts
+svymean(~factor(quart_DR1TCAFF), nhanes_design, na.rm=TRUE)  # weighted proportions
+```
+
+### subset data
+
+We will subset the covariate and microbiome data to include the same participants in each dataset.
+
+```{r}
+# find SEQN ids included in all datasets
+seqn_sub <- Reduce(intersect, list(
+  raw_data_alpha$SEQN,
+  raw_data_beta_bc$SEQN,
+  raw_data_aa$SEQN,
+  raw_data_ra$SEQN
+))
+
+length(seqn_sub)
+sum(duplicated(seqn_sub)) # no duplicates
+```
+
+We will include these `r length(seqn_sub)` participants in the subsequent analyses.
+
+
+## Alpha diversity analyses
+
+Merge the covariate data with the alpha diversity data.
+
+```{r}
+# alpha diversity
+data_alpha <- raw_data_alpha %>% 
+  left_join(data_cov, by="SEQN")
+
+dim(data_alpha)
+```
+
+Using the rarefaction of 10,000, we will first average together the 10 resamples for each alpha diversity metric.
+
+```{r out.width="50%"}
+# Shannon index
+data_alpha$shannon <- rowMeans(data_alpha[, c(
+    "RSV_ShanWienDiv_10000_0", "RSV_ShanWienDiv_10000_1", "RSV_ShanWienDiv_10000_2", "RSV_ShanWienDiv_10000_3",
+    "RSV_ShanWienDiv_10000_4", "RSV_ShanWienDiv_10000_5", "RSV_ShanWienDiv_10000_6", "RSV_ShanWienDiv_10000_7",
+    "RSV_ShanWienDiv_10000_8", "RSV_ShanWienDiv_10000_9")], na.rm = TRUE)
+
+# Observed OTUs
+data_alpha$observedotus <- rowMeans(data_alpha[, c(
+    "RSV_ObservedOTUs_10000_0", "RSV_ObservedOTUs_10000_1", "RSV_ObservedOTUs_10000_2", "RSV_ObservedOTUs_10000_3",
+    "RSV_ObservedOTUs_10000_4", "RSV_ObservedOTUs_10000_5", "RSV_ObservedOTUs_10000_6", "RSV_ObservedOTUs_10000_7",
+    "RSV_ObservedOTUs_10000_8", "RSV_ObservedOTUs_10000_9")], na.rm = TRUE)
+
+# Faith's PD
+data_alpha$faithpd <- rowMeans(data_alpha[, c(
+    "RSV_FaPhyloDiv_10000_0", "RSV_FaPhyloDiv_10000_1", "RSV_FaPhyloDiv_10000_2", "RSV_FaPhyloDiv_10000_3",
+    "RSV_FaPhyloDiv_10000_4", "RSV_FaPhyloDiv_10000_5", "RSV_FaPhyloDiv_10000_6", "RSV_FaPhyloDiv_10000_7",
+    "RSV_FaPhyloDiv_10000_8", "RSV_FaPhyloDiv_10000_9")], na.rm = TRUE)
+
+# Inverse Simpson
+data_alpha$invsimp <- rowMeans(data_alpha[, c(
+    "RSV_InverseSimpson_10000_0", "RSV_InverseSimpson_10000_1", "RSV_InverseSimpson_10000_2", "RSV_InverseSimpson_10000_3",
+    "RSV_InverseSimpson_10000_4", "RSV_InverseSimpson_10000_5", "RSV_InverseSimpson_10000_6", "RSV_InverseSimpson_10000_7",
+    "RSV_InverseSimpson_10000_8", "RSV_InverseSimpson_10000_9")], na.rm = TRUE)
+
+#Examine the distribution for each alpha diversity metric -- this is unweighted; WEIGHTED VERSION BELOW
+hist(data_alpha$shannon)
+hist(data_alpha$observedotus) #Note: these are actually ASVs, the dataset just named them OTUs (a more dated method, ASVs is more often used now) 
+hist(data_alpha$invsimp)
+hist(data_alpha$faithpd)
+
+#Weighted versions of the distribution of each alpha diversity metric
+ggplot(data_alpha, aes(x = shannon, weight = WTMEC4YR)) +
+  geom_histogram(bins = 30, na.rm = TRUE) +
+  labs(title = "Weighted histogram of Shannon index", x = "Shannon", y = "Weighted count") +
+  theme_minimal()
+
+ggplot(data_alpha, aes(x = observedotus, weight = WTMEC4YR)) + 
+  geom_histogram(bins = 30, na.rm = TRUE) +
+  labs(title = "Weighted histogram of ASVs", x = "observed ASVs", y = "Weighted count") +
+  theme_minimal()
+
+ggplot(data_alpha, aes(x = invsimp, weight = WTMEC4YR)) +
+  geom_histogram(bins = 30, na.rm = TRUE) +
+  labs(title = "Weighted histogram of Inverse-simpson index", x = "Inverse Simpson", y = "Weighted count") +
+  theme_minimal()
+
+ggplot(data_alpha, aes(x = faithpd, weight = WTMEC4YR)) +
+  geom_histogram(bins = 30, na.rm = TRUE) +
+  labs(title = "Weighted histogram of Faith's Phylogenetic Diversity", x = "Faith's PD", y = "Weighted count") +
+  theme_minimal()
+
+#recreate the survey design object now that all variables have been created:
+nhanes_design_alpha <- svydesign(
+  ids = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~WTMEC4YR,
+  data = data_alpha,
+  nest = TRUE
+)
+
+# subset
+nhanes_design_alpha <- subset(nhanes_design_alpha, SEQN %in% seqn_sub)
+nrow(nhanes_design_alpha) # 9349
+
+#Running regression models to see what relationships exist between the alpha diversity measures and sex, age category, race/ethnicity, and caffeine intake (quartiles) (note: other variables would need to be adjusted for to have a more reliable model - you can add in other variables on your own)
+
+#Model 1: Sex = independent variable, alpha-div = dependent variable (adjusted for age, race/ethnicity)
+#note: you may get a warning message after this which occurs because some observations in the survey design have weight = 0 and the svyglm() function will ignore them when estimating the dispersion parameter
+model_1_shannon <- svyglm(shannon ~ RIAGENDR + RIDAGEYR_cat + RIDRETH1, design = nhanes_design_alpha)
+summary(model_1_shannon)
+
+model_1_observedotus <- svyglm(observedotus ~ RIAGENDR + RIDAGEYR_cat + RIDRETH1, design = nhanes_design_alpha)
+summary(model_1_observedotus)
+
+model_1_invsimp <- svyglm(invsimp ~ RIAGENDR + RIDAGEYR_cat + RIDRETH1, design = nhanes_design_alpha)
+summary(model_1_invsimp)
+
+model_1_faithpd <- svyglm(faithpd ~ RIAGENDR + RIDAGEYR_cat + RIDRETH1, design = nhanes_design_alpha)
+summary(model_1_faithpd)
+
+
+#Model 2: Caffeine (quartiles) = independent variable, alpha-div = dependent variable (adjusted for sex, age, race/ethnicity)
+
+#Note: the alpha div measures have 313 missing values; ggplot() automatically drops them and will give you a warning, but it's fine - nothing is wrong with your code
+#Shannon
+ggplot(data_alpha, aes(x = shannon, weight = WTMEC4YR)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  facet_wrap(~quart_DR1TCAFF) +
+  labs(
+    title = "Distribution of Shannon Diversity by Caffeine Quartile",
+    x = "Shannon Diversity Index",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+#Observed OTUs
+ggplot(data_alpha, aes(x = observedotus, weight = WTMEC4YR)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  facet_wrap(~quart_DR1TCAFF) +
+  labs(
+    title = "Distribution of Observed OTUs by Caffeine Quartile",
+    x = "Observed OTUs",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+#Inverse-Simpson
+ggplot(data_alpha, aes(x = invsimp, weight = WTMEC4YR)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  facet_wrap(~quart_DR1TCAFF) +
+  labs(
+    title = "Distribution of Inverse-Simpson Index by Caffeine Quartile",
+    x = "Inverse-Simpson Index",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+#Faith's PD
+ggplot(data_alpha, aes(x = faithpd, weight = WTMEC4YR)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  facet_wrap(~quart_DR1TCAFF) +
+  labs(
+    title = "Distribution of Faith's Phylogenetic Diversity by Caffeine Quartile",
+    x = "Faiths PD",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+# boxplot to compare across caffeine quartiles
+ggplot(data_alpha, aes(x = quart_DR1TCAFF, y = shannon, weight = WTMEC4YR, color = quart_DR1TCAFF)) +
+  geom_point(alpha = 0.05, position=position_jitterdodge(dodge.width=1)) +
+  geom_boxplot(width=0.5, outlier.shape = NA, fill=NA, linewidth=1) +
+  theme_minimal()
+
+ggplot(data_alpha, aes(x = quart_DR1TCAFF, y = observedotus, weight = WTMEC4YR, color = quart_DR1TCAFF)) +
+  geom_point(alpha = 0.05, position=position_jitterdodge(dodge.width=1)) +
+  geom_boxplot(width=0.5, outlier.shape = NA, fill=NA, linewidth=1) +
+  theme_minimal()
+
+ggplot(data_alpha, aes(x = quart_DR1TCAFF, y = invsimp, weight = WTMEC4YR, color = quart_DR1TCAFF)) +
+  geom_point(alpha = 0.05, position=position_jitterdodge(dodge.width=1)) +
+  geom_boxplot(width=0.5, outlier.shape = NA, fill=NA, linewidth=1) +
+  theme_minimal()
+
+ggplot(data_alpha, aes(x = quart_DR1TCAFF, y = faithpd, weight = WTMEC4YR, color = quart_DR1TCAFF)) +
+  geom_point(alpha = 0.05, position=position_jitterdodge(dodge.width=1)) +
+  geom_boxplot(width=0.5, outlier.shape = NA, fill=NA, linewidth=1) +
+  theme_minimal()
+
+
+#running the regression models to see if there are statistical differences in each alpha diversity metric by quartile of caffeine intake, adjusting for sex and race/ethnicity
+model_2_shannon <- svyglm(shannon ~ quart_DR1TCAFF + RIAGENDR + RIDAGEYR_cat + RIDRETH1, design = nhanes_design_alpha)
+summary(model_2_shannon)
+
+model_2_observedotus <- svyglm(observedotus ~ quart_DR1TCAFF + RIAGENDR + RIDAGEYR_cat + RIDRETH1, design = nhanes_design_alpha)
+summary(model_2_observedotus)
+
+model_2_invsimp <- svyglm(invsimp ~ quart_DR1TCAFF + RIAGENDR + RIDAGEYR_cat + RIDRETH1, design = nhanes_design_alpha)
+summary(model_2_invsimp)
+
+model_2_faithpd <- svyglm(faithpd ~ quart_DR1TCAFF + RIAGENDR + RIDAGEYR_cat + RIDRETH1, design = nhanes_design_alpha)
+summary(model_2_faithpd)
+```
+
+## Beta diversity analyses
+
+```{r}
+
+data_beta_bc <- as.data.frame(raw_data_beta_bc)
+
+#Check Bray-Curtis matrix dimensions
+dim(data_beta_bc) #9349x9350
+
+#Store first column (SEQN) as row names to create square matrix
+rownames(data_beta_bc) <- data_beta_bc$SEQN
+data_beta_bc$SEQN <- NULL
+
+#Recheck dimensions
+dim(data_beta_bc)  #9349x9349
+
+#Check that row names match column names
+all(rownames(data_beta_bc) == colnames(data_beta_bc))
+
+#Subset samples to save time for the ordination
+data_beta_bc_subset <- data_beta_bc[1:1000, 1:1000]
+
+#Subset NHANES object to match number of observations in data_beta_bc 
+nhanes_design_subset <- subset(nhanes_design, SEQN %in% rownames(data_beta_bc_subset))
+
+#Check that subset matches bray-curtis data
+length(nhanes_design_subset$variables$SEQN)
+length(rownames(data_beta_bc_subset))
+setequal(nhanes_design_subset$variables$SEQN, rownames(data_beta_bc_subset))
+
+######################
+###Create PCoA Plots##
+######################
+
+#Install and load packages
+#install.packages("vegan")
+library(vegan)
+
+#calculate the first 3 PCoA Axes
+pcoa_weight <- wcmdscale(data_beta_bc_subset, 3, eig = TRUE, w=nhanes_design_subset$variables$WTMEC4YR) 
+
+#PCOA PLOT 1: Basic plot
+pcoa_plot <- data.frame(
+  PCoA1 = pcoa_weight$points[,1],
+  PCoA2 = pcoa_weight$points[,2]
+)
+
+ggplot(pcoa_plot, aes(x=PCoA1, y=PCoA2)) +
+  geom_point() +
+  theme_classic() 
+
+table(nhanes_design_subset$variables$quart_DR1TCAFF)
+
+#PCOA PLOT 2: Fill color by caffeine quartile (or any other variable)
+pcoa_plot2 <- data.frame(
+  PCoA1 = pcoa_weight$points[,1],
+  PCoA2 = pcoa_weight$points[,2],
+  Caffiene = factor(nhanes_design_subset$variables$quart_DR1TCAFF)
+)
+
+pcoa_plot2 %>% 
+  filter(!is.na(Caffiene)) %>% #remove those with missing caffeine values
+  ggplot(aes(x=PCoA1, y=PCoA2, color=Caffiene)) +
+    geom_point() +
+    scale_color_manual(values = c("#5a7d4f", "#9e9bff", "#13c34d", "#c99200"),  #color palette options: https://medialab.github.io/iwanthue/
+                     labels = c("Q1", "Q2", "Q3", "Q4")) +
+    theme_classic() 
+
+
+##PCOA PLOT 3: Calculate % variance explained by axes and add to axis labels
+var_percent <- 100*(pcoa_weight$eig/sum(pcoa_weight$eig[pcoa_weight$eig>0]))  
+
+#Add % variance to axis labels, rounding to two decimal places
+xlab <- paste0("PCoA Axis 1 (", round(var_percent[1],2), "%)")
+ylab <- paste0("PCoA Axis 2 (", round(var_percent[2],2), "%)")
+
+#Plot
+pcoa_plot2 %>% 
+  filter(!is.na(Caffiene)) %>% #remove those with missing caffeine values
+  ggplot(aes(x=PCoA1, y=PCoA2, color=Caffiene)) +
+    geom_point() +
+    scale_color_manual(values = c("#5a7d4f", "#9e9bff", "#13c34d", "#c99200"),  #color palette options: https://medialab.github.io/iwanthue/
+                     labels = c("Q1", "Q2", "Q3", "Q4")) +
+    xlab(xlab) +
+    ylab(ylab) +
+    theme_classic() 
+
+
+## You can additionally test for differences between groups as well as associations between overall beta diversity and covariates using PERMANOVA and MiRKAT
+
+
+```
+
+## Abundance analyses (relative abundance and presence/absence)
+
+### presence/absence - prevalence
+
+We will use the absolute abundance data (counts) to create a presence/absence data (binary - 0s and 1s) and use this to calculate the prevalence of each genus.
+
+```{r}
+data_aa <- raw_data_aa 
+
+dim(data_aa) # 9848x1350
+sum(duplicated(data_aa$SEQN)) # no duplicates
+sum(is.na(data_aa$SEQN)) # 1 missing id
+
+data_aa %>% 
+  filter(is.na(SEQN)) %>% 
+  head()
+
+# summary statistics of entire abs abundance data
+summary(as.vector(as.matrix(data_aa %>% select(-SEQN))))
+
+
+####
+# convert abs abundance to presence/absence data 
+
+data_pa <- data_aa %>% 
+  filter(!is.na(SEQN)) %>% 
+  mutate_at(vars(-SEQN), function(x){
+    x = ifelse(x>0, 1, x)
+  })
+  
+dim(data_pa)
+table(as.vector(as.matrix(data_pa %>% select(-SEQN)))) # these are all 0s and 1s now
+
+
+####
+# add diet/demo data 
+
+dim(data_pa)
+data_pa <- full_join(data_cov, data_pa, by="SEQN")
+dim(data_pa)
+
+
+####
+# design object
+
+nhanes_design_pa <- svydesign(
+  ids = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~WTMEC4YR,
+  data = data_pa,
+  nest = TRUE
+)
+
+nhanes_design_pa <- subset(nhanes_design_pa, SEQN %in% seqn_sub)
+nrow(nhanes_design_pa) # 9349
+
+
+####
+# calculate prevalence (=mean)
+
+# unweighted
+taxa_sumstat <- data_pa %>% 
+  filter(SEQN %in% seqn_sub) %>% 
+  summarise_at(vars(c(colnames(data_pa)[grepl("RSV_", colnames(data_pa))])), function(x){
+    sum(x)/length(x)
+  }) %>% 
+  pivot_longer(everything(.), names_to = "taxa_id", values_to = "unw_prev")
+
+# weighted
+
+taxa_id <- colnames(data_pa)[grepl("RSV_", colnames(data_pa))]
+length(taxa_id)
+
+temp_pa <- list()
+
+for(i in taxa_id){
+  temp_pa[[i]] <- svymean(as.formula(paste0("~",i)), nhanes_design_pa, na.rm = TRUE)
+}
+
+temp_pa <- llply(temp_pa, as.data.frame) %>% 
+  llply(., function(x){
+  x %>% 
+    rename_with(~c("prev", "prev_se"), .cols=c(1,2))
+  }) %>% 
+  ldply(.id = "taxa_id") %>% 
+  mutate(taxa_id = as.character(taxa_id))
+
+head(temp_pa)
+
+# merge with unweighted prev
+dim(taxa_sumstat) # 1349x2
+dim(temp_pa) # 1349x3
+
+taxa_sumstat <- taxa_sumstat %>% 
+  full_join(., temp_pa, by="taxa_id")
+
+dim(taxa_sumstat)
+head(taxa_sumstat)
+
+summary(taxa_sumstat$unw_prev) # unweighted prevalence
+summary(taxa_sumstat$prev) # weighted prevalence
+
+rm(temp_pa)
+```
+
+### mean relative abundance
+
+We will use the relative abundance data to calculate the mean relative abundance for each genus.
+
+```{r}
+data_ra <- raw_data_ra
+
+dim(data_ra) # 9848
+
+sum(is.na(data_ra$SEQN)) # one
+sum(duplicated(data_ra$SEQN)) # none
+
+data_ra <- data_ra %>% 
+  filter(!is.na(SEQN))
+
+####
+# add diet/demo data 
+
+dim(data_ra)
+data_ra <- full_join(data_cov, data_ra, by="SEQN")
+dim(data_ra)
+
+# check all subject IDs are the same 
+identical(data_pa$SEQN, data_ra$SEQN) # true
+
+# check taxa_ids are the same 
+identical(colnames(data_pa)[grepl("RSV_", colnames(data_pa))],
+          colnames(data_ra)[grepl("RSV_", colnames(data_ra))]) # true
+
+
+####
+# design object
+
+nhanes_design_ra <- svydesign(
+  ids = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~WTMEC4YR,
+  data = data_ra,
+  nest = TRUE
+)
+
+nhanes_design_ra <- subset(nhanes_design_ra, SEQN %in% seqn_sub)
+nrow(nhanes_design_ra) # 9349
+
+
+####
+# calculate mean relative abundance
+
+# unweighted 
+temp_ra_unw <- data_ra %>% 
+  filter(SEQN %in% seqn_sub) %>% 
+  summarise_at(vars(c(colnames(data_ra)[grepl("RSV_", colnames(data_ra))])),
+               mean, na.rm = TRUE) %>% 
+  pivot_longer(everything(.), names_to = "taxa_id", values_to = "unw_meanra")
+
+
+# weighted
+
+identical(colnames(data_ra)[grepl("RSV_", colnames(data_ra))], taxa_id) # true
+
+temp_ra <- list()
+
+for(i in taxa_id){
+  temp_ra[[i]] <- svymean(as.formula(paste0("~",i)), nhanes_design_ra, na.rm = TRUE)
+}
+
+temp_ra <- llply(temp_ra, as.data.frame) %>% 
+  llply(., function(x){
+  x %>% 
+    rename_with(~c("meanra", "meanra_se"), .cols=c(1,2))
+  }) %>% 
+  ldply(.id = "taxa_id") %>% 
+  mutate(taxa_id = as.character(taxa_id))
+
+head(temp_ra)
+
+dim(taxa_sumstat) # 1349x4
+dim(temp_ra_unw) # 1349x2
+dim(temp_ra) # 1349x3
+
+taxa_sumstat <- taxa_sumstat %>% 
+  full_join(., temp_ra_unw, by="taxa_id") %>% 
+  full_join(., temp_ra, by="taxa_id")
+
+dim(taxa_sumstat)
+head(taxa_sumstat)
+
+summary(taxa_sumstat$unw_meanra) # unweighted mean relative abundance
+summary(taxa_sumstat$meanra) # weighted mean relative abundance
+
+rm(temp_ra, temp_ra_unw, i)
+```
+
+```{r}
+# link taxa name to the summary statistic table
+dim(raw_data_taxaname)
+head(raw_data_taxaname) # this has the names for all taxnomic levels, from phylum to genus
+
+data_taxaname <- raw_data_taxaname %>% 
+  rename(taxa_id = Name, taxa_name = `Taxonomy in SILVA v123`)
+
+taxa_sumstat <- taxa_sumstat %>% 
+  left_join(., data_taxaname, by = "taxa_id") %>% 
+  select(taxa_id, taxa_name, everything(.))
+
+head(taxa_sumstat)
+```
+
+### taxonomic profile (stacked barplot)
+
+We will create a stacked barplot to visualize the microbiome composition by caffeine quartile.
+
+```{r}
+# calculate weighted mean relative abundance by caffeine quartile -- this will take a min to run...
+
+temp <- list()
+
+for(i in taxa_id){
+  temp[[i]] <- svyby(as.formula(paste0("~",i)), ~quart_DR1TCAFF, nhanes_design_ra, svymean, na.rm = TRUE)
+}
+
+temp <- llply(temp, as.data.frame) %>% 
+  llply(., function(x){
+  x %>% 
+    rename_with(~c("meanra", "meanra_se"), .cols=c(2, 3))
+  }) %>% 
+  ldply(.id = "taxa_id") %>% 
+  mutate(taxa_id = as.character(taxa_id))
+
+head(temp)
+
+
+# add taxa names
+temp <- temp %>% 
+  left_join(., data_taxaname, by="taxa_id") %>% 
+  select(taxa_id, taxa_name, everything(.))
+
+# add the overall mean relative abundance
+temp2 <- taxa_sumstat %>% 
+  select(taxa_id, taxa_name, meanra, meanra_se) %>% 
+  mutate(quart_DR1TCAFF = "Overall")
+
+temp <- rbind(temp, temp2)
+
+rm(temp2)
+
+# label taxa with overall meanra > 0.01
+temp_taxa <- temp %>% 
+  filter(quart_DR1TCAFF == "Overall" & meanra>0.01) %>% 
+  pull(taxa_id)
+
+length(temp_taxa) # 14
+
+temp <- temp %>% 
+  mutate(
+    taxa_label = case_when(
+      taxa_id %in% temp_taxa ~ str_extract(taxa_name, "[^;]+$"),
+      TRUE ~ "Other"
+    )
+  )
+
+# order the taxa by mean relative abundance
+taxa_order <- temp %>% 
+  filter(quart_DR1TCAFF == "Overall") %>% 
+  arrange(desc(meanra)) %>% 
+  pull(taxa_label) %>% 
+  unique(.)
+
+temp <- temp %>% 
+  mutate(
+    taxa_label = factor(taxa_label, levels = taxa_order)
+  )
+
+temp %>% count(taxa_label)
+
+mycolors <- as.vector(ggsci::pal_ucscgb()(26))
+    
+ggplot(temp, aes(x = quart_DR1TCAFF, y=meanra, fill=taxa_label)) +
+  geom_bar(stat="identity") +
+  labs(x=NULL,y="Relative abundance", fill="Genus") +
+  scale_fill_manual(values=mycolors[1:length(levels(temp$taxa_label))]) +
+  guides(fill=guide_legend(ncol=1)) +
+  theme(legend.position = "right", legend.text=element_text(size=8))
+```
+
+```{r}
+rm(temp, temp_taxa, taxa_order, i)
+```
+
+### filter low prevalence taxa
+
+We will now run some regression models. For the models, we will exclude taxa with weighted prevalence less than 1% or greater than 99%, and also taxa with mean relative abundance less than 0.0001
+
+```{r}
+# taxa with all 0s
+taxa_sumstat %>% 
+  filter(prev == 0 & meanra == 0) %>% 
+  nrow() # 89 taxa
+
+# taxa with prev <1%
+taxa_sumstat %>% 
+  filter(prev < 0.01 | prev > 0.99) %>% 
+  nrow() # 1131
+
+# taxa with meanra <0.0001
+taxa_sumstat %>% 
+  filter(meanra < 0.0001) %>% 
+  nrow() # 1250
+
+# create a flag for taxa to filter out
+taxa_sumstat <- taxa_sumstat %>% 
+  mutate(
+    filt_flg = case_when(
+      prev <0.01 | prev>0.99 ~ 1,
+      meanra < 0.0001 ~ 1,
+      TRUE ~ 0
+    )
+  )
+
+taxa_sumstat %>% 
+  count(filt_flg) # 90 taxa to keep
+
+# taxa_id of 90 taxa to keep
+taxa_id_sub <- taxa_sumstat %>% 
+  filter(filt_flg == 0) %>% 
+  pull(taxa_id)
+length(taxa_id_sub) # 90
+```
+
+### pa model
+
+Run the following model: presence/absence of taxon ~ caffeine quartile + age + sex + race/ethnicity
+We will run the model separately for each taxon, with multiple testing correction.
+
+```{r}
+model_pa <- list()
+
+for(i in taxa_id_sub){
+  model_pa[[i]] <- svyglm(as.formula(paste0(i, "~ quart_DR1TCAFF + RIDAGEYR_cat + RIAGENDR + RIDRETH1")), nhanes_design_pa, family=quasibinomial())
+}
+
+model_pa_wald <- llply(model_pa, function(x){
+  regTermTest(x, "quart_DR1TCAFF")
+})
+
+# example result for RSV_genus1007
+summary(model_pa[[1]])
+model_pa_wald[1]
+
+# make a results table with the wald p-values
+model_pa_res <- llply(model_pa_wald, function(x){
+  x$p
+}) %>% 
+  ldply(., .id = "taxa_id") %>% 
+  rename(pval = "1")
+
+# multiple testing correction
+dim(model_pa_res)
+summary(model_pa_res$pval)
+
+model_pa_res <- model_pa_res %>% 
+  mutate(
+    adj_pval = p.adjust(pval, method = "bonferroni", n=length(pval))
+  )
+
+summary(model_pa_res$adj_pval)
+
+# number of significant taxa (after bonferroni)
+model_pa_res %>% 
+  filter(adj_pval < 0.05)
+## there are three
+
+# link taxa name to results table
+model_pa_res <- model_pa_res %>% 
+  arrange(adj_pval, pval) %>% 
+  left_join(., data_taxaname, by = "taxa_id") %>% 
+  select(taxa_id, taxa_name, everything(.))
+
+# look at the significant taxa
+model_pa_res %>% 
+  filter(adj_pval <0.05)
+
+# look at top 10
+head(model_pa_res, 10)
+```
+
+```{r}
+rm(model_pa) # this is a large object - remove to save memory
+```
+
+
+### clr model
+
+Relative abundance data are compositional (data are constrained to a sum of 100%), but many standard statistical methods assume independent, unconstrained data. We will use the centered log-ratio (CLR) transformation to make the data appropriate for standard methods, including regression. CLR expresses the log of each taxon abundance relative to the geometric mean of all taxa in the sample.
+
+```{r}
+head(data_aa)
+
+temp <- data_aa %>% 
+  filter(!is.na(SEQN)) %>% 
+  column_to_rownames(var = "SEQN") %>% 
+  as.matrix(.)
+
+summary(as.vector(temp))
+sum(temp == 0) # number of 0s
+
+# log and add pseudocount
+temp <- as.data.frame(log(temp + 0.001)) %>% 
+  rownames_to_column(var="SEQN") %>% 
+  arrange(SEQN)
+
+# calculate the geometric mean of the read counts of all taxa within a sample - this is the denominator for the clr transformation
+temp_denom <- temp %>% 
+  pivot_longer(-SEQN) %>% 
+  group_by(SEQN) %>% 
+  summarise(samp_geom_mean = mean(value)) %>% 
+  ungroup(.) %>% 
+  arrange(SEQN) %>% 
+  column_to_rownames(var="SEQN") %>% 
+  as.matrix(.)
+
+head(temp_denom)
+
+# clr numerator - this is the logged count data (with pseudocount added)
+temp_num <- temp %>% 
+  column_to_rownames(var="SEQN") %>% 
+  as.matrix(.)
+
+dim(temp_denom) # 9847x1 - geometric mean of all taxa in each sample
+dim(temp_num) # 9847x1349 - logged with pseudocount
+
+# check sample ids match
+identical(rownames(temp_num), rownames(temp_denom)) #true
+
+# clr transform
+data_clr <- sweep(temp_num, 1, temp_denom, "-")
+
+data_clr<- as.data.frame(data_clr) %>% 
+  rownames_to_column(var="SEQN")
+
+rm(temp, temp_denom, temp_num)
+
+tibble(data_clr)
+```
+
+**OPTIONAL**: Instead of doing the CLR transformation manually, you can also use the `microbiome` and `phyloseq` packages to do this.
+
+```{r}
+# this section is optional so the code is commented out
+
+## install microbiome and phyloseq packages from Bioconductor
+#  if (!require("BiocManager", quietly = TRUE))
+#      install.packages("BiocManager")
+#  BiocManager::install("phyloseq")
+#  BiocManager::install("microbiome")
+
+# library(phyloseq)
+# 
+# # format data for phyloseq
+# temp <- data_aa %>%
+#   filter(!is.na(SEQN)) %>%
+#   select(-SEQN) %>%
+#   t(.)
+# 
+# colnames(temp) <- data_aa %>%
+#   filter(!is.na(SEQN)) %>%
+#   pull(SEQN)
+# 
+# # add pseudocount
+# temp <- temp + 0.001
+# 
+# ## transform data to phyloseq object
+# temp_phylo <- otu_table(temp, taxa_are_rows = TRUE)
+# 
+# ## and put them in one object
+# temp_phylo <- phyloseq(temp_phylo)
+# str(temp_phylo)
+# 
+# temp_phylo_clr <- microbiome::transform(temp_phylo, "clr")
+# 
+# temp_phylo_clr <- as.data.frame(t(otu_table(temp_phylo_clr)))
+# 
+# temp_phylo_clr <- temp_phylo_clr %>%
+#   rownames_to_column(var="SEQN") %>%
+#   arrange(SEQN)
+# 
+# # is this identical to the manually calculated CLR transformed data?
+# identical(temp_phylo_clr, data_clr) # true
+# 
+# tibble(data_clr)
+# tibble(temp_phylo_clr)
+# 
+# rm(temp, temp_phylo, temp_phylo_clr)
+```
+
+Add covariates to the CLR transformed data and subset.
+
+```{r}
+# add diet/demo data 
+
+dim(data_clr)
+data_clr <- data_clr %>% 
+  mutate(SEQN = as.numeric(as.character(SEQN)))
+
+data_clr <- full_join(data_cov, data_clr, by="SEQN")
+dim(data_clr)
+
+####
+# design object
+
+nhanes_design_clr <- svydesign(
+  ids = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~WTMEC4YR,
+  data = data_clr,
+  nest = TRUE
+)
+
+nhanes_design_clr <- subset(nhanes_design_clr, SEQN %in% seqn_sub)
+nrow(nhanes_design_clr) # 9349
+```
+
+Now run model on CLR transformed data, only including the filtered taxa.
+
+```{r}
+model_clr <- list()
+
+for(i in taxa_id_sub){
+  model_clr[[i]] <- svyglm(as.formula(paste0(i, "~ quart_DR1TCAFF + RIDAGEYR_cat + RIAGENDR + RIDRETH1")), nhanes_design_clr, family=gaussian())
+}
+
+model_clr_wald <- llply(model_clr, function(x){
+  regTermTest(x, "quart_DR1TCAFF")
+})
+
+# example result for RSV_genus1007
+summary(model_clr[[1]])
+model_clr_wald[1]
+
+# make a results table with the wald p-values
+model_clr_res <- llply(model_clr_wald, function(x){
+  x$p
+}) %>% 
+  ldply(., .id = "taxa_id") %>% 
+  rename(pval = "1")
+
+# multiple testing correction
+dim(model_clr_res)
+summary(model_clr_res$pval)
+
+model_clr_res <- model_clr_res %>% 
+  mutate(
+    adj_pval = p.adjust(pval, method = "bonferroni", n=length(pval))
+  )
+
+summary(model_clr_res$adj_pval)
+
+# number of significant taxa (after bonferroni)
+model_clr_res %>% 
+  filter(adj_pval < 0.05)
+## there are 6
+
+# link taxa name to results table
+model_clr_res <- model_clr_res %>% 
+  arrange(adj_pval, pval) %>% 
+  left_join(., data_taxaname, by = "taxa_id") %>% 
+  select(taxa_id, taxa_name, everything(.))
+
+# look at the significant taxa
+model_clr_res %>% 
+  filter(adj_pval <0.05)
+
+# look at top 10
+head(model_clr_res, 10)
+```
+
+```{r}
+rm(model_clr)
+```
+
