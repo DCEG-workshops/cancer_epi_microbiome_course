@@ -12,9 +12,6 @@ permalink: workshops/session_8/lecture
 - Learn contamination assessment and control methods
 - Review Sherlock Lung case study
 
-### Lecture Materials
-[Lecture slides will be posted here]
-
 ### Key Concepts
 - Low biomass sample considerations
 - RNAseq vs. DNA-based approaches
@@ -22,6 +19,12 @@ permalink: workshops/session_8/lecture
 - Contamination sources and controls
 - Negative controls and blanks
 - Sherlock Lung study design
+
+### Lecture Materials
+<script src="{{ site.baseurl }}/assets/js/vanilla-back-to-top.min.js"></script>
+<script>addBackToTop()</script>
+
+<object data="Microbiome_Course_2026_DCEG_session6.pdf" width="1000" height="1000" type='application/pdf'></object>
 
 <br>
 *Instructor: McElderry (ITEB)*
